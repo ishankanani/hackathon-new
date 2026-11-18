@@ -32,9 +32,21 @@ def thin(geometry, min_km=0.5):
     out.append(geometry[-1])
     return out
 
+# Road distance is on average about a quarter longer than the straight line.
+ROAD_FACTOR = 1.25
+ESTIMATE_SOURCE = "Estimated corridor (road service unavailable); confirm on the map before dispatch"
+
+def estimate_leg(a, b):
+    """Straight-line road estimate, used only when the road service gives no answer."""
+    km = _haversine_km(a, b) * ROAD_FACTOR
+    line = [[a[1] + (b[1] - a[1]) * t / 20, a[0] + (b[0] - a[0]) * t / 20] for t in range(21)]
+    return {"geometry": line, "distance_km": round(km, 1), "duration_minutes": round(km / AVERAGE_TRUCK_KMH * 60), "estimated": True}
+
 def select_hubs(origin, destination, available_hubs, existing_route, routing, constraints):
+    # The free OSRM server often refuses or times out from cloud hosts (Vercel).
+    # Without a fallback no hub was ever proposed there; estimates are labelled.
     if not existing_route.get("geometry"):
-        return []  # Never claim route relevance from a geographic midpoint.
+        existing_route = estimate_leg(ll(origin), ll(destination))
     corridor = thin(existing_route["geometry"])
     blocked = constraints.get("blocked", set())
     candidates = []
@@ -52,13 +64,15 @@ def select_hubs(origin, destination, available_hubs, existing_route, routing, co
     def verify(item):
         _, n = item
         left = routing.leg(ll(origin), ll(n)); right = routing.leg(ll(n), ll(destination))
-        if not left.get("geometry") or not right.get("geometry"): return None
+        if not left.get("geometry"): left = estimate_leg(ll(origin), ll(n))
+        if not right.get("geometry"): right = estimate_leg(ll(n), ll(destination))
+        estimated = existing_route.get("estimated") or left.get("estimated") or right.get("estimated")
         remaining_minutes = max(right.get("duration_minutes", 0), right["distance_km"] / AVERAGE_TRUCK_KMH * 60)
         if remaining_minutes < HUB_MIN_REMAINING_MINUTES: return None
         detour = left["distance_km"] + right["distance_km"] - baseline
         if detour > min(100, max(15, baseline*constraints.get("max_detour_ratio", .25))): return None
         return {"hub": n["id"], "name": n["name"], "reason": "Operational transfer facility near the road route; ranked by distance to destination after detour and capacity checks.",
-                "distance_to_destination_km": right["distance_km"], "route_deviation_km": round(max(0,detour),1), "source": "OSRM road corridor + prototype transfer eligibility"}
+                "distance_to_destination_km": right["distance_km"], "route_deviation_km": round(max(0,detour),1), "source": ESTIMATE_SOURCE if estimated else "OSRM road corridor + prototype transfer eligibility"}
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = [r for r in pool.map(verify,candidates[:8]) if r]
     return sorted(results, key=lambda r:(r["distance_to_destination_km"],r["route_deviation_km"]))[:3]

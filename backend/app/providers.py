@@ -17,6 +17,7 @@ import time
 import httpx
 from datetime import datetime, timezone
 from .live import Forecasts, TomTom
+from .geometry import simplify
 
 STALE_AFTER_S = {"weather": 1800, "traffic": 600, "routing": 86400}
 
@@ -127,7 +128,7 @@ class RoutingProvider(Provider):
             self.last_success = _now(); self.data_timestamp = _now(); self.error = None
             result = [{"status": "LIVE", "duration_minutes": max(1, round(route["duration"] / 60)),
                       "distance_km": round(route["distance"] / 1000, 1),
-                      "geometry": route["geometry"]["coordinates"], "source": "OSRM road estimate (not truck-certified)"}
+                      "geometry": simplify(route["geometry"]["coordinates"]), "source": "OSRM road estimate (not truck-certified)"}
                       for route in r.json().get("routes", [])[:limit+1]]
         except Exception as ex:
             self.error = type(ex).__name__

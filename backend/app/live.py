@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone
 import httpx
 from .weather_rules import evaluate
+from .geometry import simplify
 
 UTC=timezone.utc
 
@@ -194,8 +195,9 @@ class TomTom:
         sections=[]
         for s in route.get("sections",[]):
             if s.get("sectionType")=="TRAFFIC":
-                sections.append({"geometry":points[s["startPointIndex"]:s["endPointIndex"]+1],"delay_minutes":round(s.get("delayInSeconds",0)/60,1),"description":s.get("simpleCategory","Traffic"),"source":"TomTom"})
-        return {"geometry":points,"distance_km":round(summary["lengthInMeters"]/1000,1),"duration_minutes":total,"traffic_minutes":delay,"traffic_sections":sections,"source":"TomTom traffic-aware truck route","fetched_at":self.last_success}
+                # Cut by TomTom's point indices first, then simplify each line on its own.
+                sections.append({"geometry":simplify(points[s["startPointIndex"]:s["endPointIndex"]+1]),"delay_minutes":round(s.get("delayInSeconds",0)/60,1),"description":s.get("simpleCategory","Traffic"),"source":"TomTom"})
+        return {"geometry":simplify(points),"distance_km":round(summary["lengthInMeters"]/1000,1),"duration_minutes":total,"traffic_minutes":delay,"traffic_sections":sections,"source":"TomTom traffic-aware truck route","fetched_at":self.last_success}
     def incidents(self,coords):
         if not self.key:
             return {"status":"SIMULATED","items":self.simulate_incidents(coords),"fetched_at":now().isoformat()}
