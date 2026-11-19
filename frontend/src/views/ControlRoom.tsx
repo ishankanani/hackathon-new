@@ -47,7 +47,10 @@ export function ControlRoom({nodes,onChange,refreshKey=0,active=true,savedJourne
  async function review(id:string,recalculate=false,decisionToRevise?:Decision){
   if(busy)return;const request=++reviewId.current;setBusy(true);setErr("");setMsg("");setCreating(false);
   try{const saved=recalculate&&detail?.id===id?detail:await api.shipment(id);const moving=!!saved.movement_started_at||["IN TRANSIT","DELAYED","ARRIVAL EXPECTED"].includes(saved.status);const stale=moving&&(!saved.vehicle_position||Date.now()-Date.parse(saved.vehicle_position.reported_at)>900000);
-   const s=recalculate&&!stale?await api.replan(id):saved;if(!alive.current||reviewId.current!==request)return;
+   // Options calculated under older conditions cannot be approved (the server answers
+   // "Conditions changed"), so refresh them as soon as the journey is opened.
+   const outdated=!moving&&ops!=null&&!!saved.options?.length&&saved.options.some(o=>(o.revision??-1)!==ops.revision);
+   const s=(recalculate&&!stale)||outdated?await api.replan(id):saved;if(!alive.current||reviewId.current!==request)return;
    setDetail(s);const preferred=s.options?.findIndex(o=>o.route_id===s.accepted_plan?.route_id)??-1;setSel(preferred>=0?preferred:s.selected_option??0);setAck(false);if(decisionToRevise||detail?.id!==id)setReason(decisionToRevise?.reason??"");setRevising(decisionToRevise??(detail?.id===id?revising:null));setRouteDraft(false);if(recalculate)void load();
    if(decisionToRevise)reviewPanel.current?.scrollIntoView({behavior:"smooth",block:"start"});
   }catch(e){if(alive.current)setErr(String(e));if(decisionToRevise)throw e}finally{if(alive.current&&reviewId.current===request)setBusy(false)}
@@ -84,6 +87,15 @@ export function ControlRoom({nodes,onChange,refreshKey=0,active=true,savedJourne
      const next=updated.options?.findIndex(o=>o.route_id===option.route_id)??-1;
      setSel(next>=0?next:0);setAck(false);
     }catch{setErr("Live conditions changed. Reopen the journey to review the updated options.")}
+   }else if(e instanceof ApiError&&e.status===409&&/Conditions changed/i.test(e.message)){
+    // Conditions changed while the review was open: recalculate, keep the chosen route selected.
+    try{
+     const updated=await api.replan(detail.id);if(!alive.current)return;
+     setDetail(updated);
+     const next=updated.options?.findIndex(o=>o.route_id===option.route_id||JSON.stringify(o.path)===JSON.stringify(option.path))??-1;
+     setSel(next>=0?next:0);setAck(false);void load();
+     setErr("Conditions changed since this review was opened. The options were recalculated; check the numbers and approve again.");
+    }catch{setErr("Conditions changed. Press Recalculate, then approve again.")}
    }else if(!(e instanceof ApiError)||e.status>=500){
     setErr("We couldn’t confirm the save. Retry the same decision. It will only be recorded once.");
    }else setErr(e.message);
