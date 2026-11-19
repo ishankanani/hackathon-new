@@ -12,7 +12,8 @@ function csvCell(value: unknown) {
   return '"' + text.replace(/"/g, '""') + '"';
 }
 
-export function Savings() {
+/** Reloads whenever the tab is opened and after any approval elsewhere (refreshKey). */
+export function Savings({ active: visible = true, refreshKey = 0 }: { active?: boolean; refreshKey?: number }) {
   // Only manager-approved plan estimates are shown on this page.
   const [s, setS] = useState<SavingsResp | null>(null);
   const [error, setError] = useState("");
@@ -23,6 +24,7 @@ export function Savings() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [asOf, setAsOf] = useState("");
   useEffect(() => {
+    if (!visible) return;
     let active = true;
     setLoading(true); setError(""); setExpanded(null);
     const request = api.savings("estimated").then(data => { if (active) setS(data); });
@@ -31,7 +33,7 @@ export function Savings() {
       .catch(e => { if (active) setError(String(e)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [refresh]);
+  }, [refresh, visible, refreshKey]);
 
   async function rebuild() {
     setBusy(true); setError("");

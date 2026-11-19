@@ -139,7 +139,7 @@ export default function App() {
           )}
         </div>
         <div style={{ display: tab === "savings" ? "block" : "none" }}>
-          {visited.has("savings") && <Savings />}
+          {visited.has("savings") && <Savings active={tab==="savings"} refreshKey={tick} />}
         </div>
 
         <div style={{display:tab==="driver"?"block":"none"}}>{visited.has("driver")&&<DriverUpdates nodes={nodes}/>}</div>
