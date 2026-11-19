@@ -8,7 +8,7 @@ import { dt, hm } from "../lib";
 import type { SimView } from "./JourneySimulator";
 import { MapWeatherSimulation } from "./MapWeatherSimulation";
 import { GoogleLiveMap } from "./GoogleLiveMap";
-import { GOOGLE_MAPS_KEY } from "./googleMapsApi";
+import { GOOGLE_MAPS_KEY, googleMapsRefused } from "./googleMapsApi";
 import { createRouteIncidentMatcher } from "./mapRouteGeometry";
 import { useRouteMapConditions } from "./useRouteMapConditions";
 import { TRUCK_GLYPH } from "./truckGlyph";
@@ -206,7 +206,7 @@ export type LiveMapProps = Parameters<typeof OpenStreetMap>[0];
 
 export function LiveMap(props: LiveMapProps) {
   const [backup, setBackup] = useState(false);
-  if (GOOGLE_MAPS_KEY && !backup) return <GoogleLiveMap {...props} onFallback={() => setBackup(true)} />;
+  if (GOOGLE_MAPS_KEY && !backup && !googleMapsRefused) return <GoogleLiveMap {...props} onFallback={() => setBackup(true)} />;
   return <>{backup && <div className="map-provider-switch">Backup map active. <button className="linkbtn" onClick={() => setBackup(false)}>Return to Google Maps</button></div>}<OpenStreetMap {...props} /></>;
 }
 

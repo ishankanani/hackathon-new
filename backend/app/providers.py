@@ -20,9 +20,9 @@ from .live import Forecasts, TomTom
 from .geometry import simplify
 
 STALE_AFTER_S = {"weather": 1800, "traffic": 600, "routing": 86400}
-# After the road service fails, skip it for this long instead of waiting for a
+# After the road service times out or is unreachable, skip it for this long instead of waiting for a
 # timeout on every leg (one plan asks for up to ~20 legs). Estimates are used meanwhile.
-ROUTING_BACKOFF_S = 60
+ROUTING_BACKOFF_S = 30
 
 
 def _now():
@@ -138,7 +138,10 @@ class RoutingProvider(Provider):
                       for route in r.json().get("routes", [])[:limit+1]]
         except Exception as ex:
             self.error = type(ex).__name__
-            self.failed_at = time.time()
+            # Pause only when the service is unreachable or hanging. A refusal
+            # such as 429 (rate limit) affects one request, not the next ones.
+            if isinstance(ex, (httpx.TimeoutException, httpx.NetworkError)):
+                self.failed_at = time.time()
             result = []
         cache[cache_key] = (time.time(), result)
         if result: self.legs[key] = (time.time(), result[:1])

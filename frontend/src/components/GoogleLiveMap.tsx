@@ -57,13 +57,16 @@ export function GoogleLiveMap({ nodes, path, geometry, completedGeometry = EMPTY
   const facilityContext = useRef({path, alternatives, forecasts});
   facilityContext.current = {path, alternatives, forecasts};
   const choose = useRef(onSelect); choose.current = onSelect;
+  const fallback = useRef(onFallback); fallback.current = onFallback;
   const lastFit = useRef("");
 
   useEffect(() => {
     let alive = true;
     setReady(false); lastFit.current = "";
     let dispose = () => {};
-    const authError = (event: Event) => setError((event as CustomEvent<string>).detail);
+    // Google rejected the key: its map is unusable and drawing markers on it crashes
+    // the page, so switch to the built-in map straight away.
+    const authError = (event: Event) => { alive = false; setReady(false); setError((event as CustomEvent<string>).detail); dispose(); fallback.current(); };
     window.addEventListener("dachser-google-maps-error", authError);
     loadGoogleMaps().then(maps => {
       if (!alive || !container.current) return;

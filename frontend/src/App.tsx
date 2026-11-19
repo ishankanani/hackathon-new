@@ -1,6 +1,7 @@
 import "./dispatch.css";
 import { useEffect, useRef, useState } from "react";
 import { Truck, Route, PiggyBank, BarChart3, RefreshCw, ShieldCheck, CloudSun, ArrowUpRight, Activity } from "lucide-react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { api } from "./api/client";
 import type { NetworkDoc, Provider, Operations, Shipment } from "./api/types";
 import { statusClass } from "./lib";
@@ -118,11 +119,11 @@ export default function App() {
 
         <div style={{ display: tab === "planner" ? "block" : "none" }}>
           {visited.has("planner") && (
-            <Planner nodes={nodes} revision={ops?.revision ?? 0} operations={ops} onSaved={saved} onChange={refresh} onReview={(id) => {if(id)setReviewRequest(prev=>({id,version:(prev?.version??0)+1}));selectTab("control")}} />
+            <ErrorBoundary name="route planner"><Planner nodes={nodes} revision={ops?.revision ?? 0} operations={ops} onSaved={saved} onChange={refresh} onReview={(id) => {if(id)setReviewRequest(prev=>({id,version:(prev?.version??0)+1}));selectTab("control")}} /></ErrorBoundary>
           )}
         </div>
         <div style={{ display: tab === "control" ? "block" : "none" }}>
-          {visited.has("control") && <ControlRoom nodes={nodes} onChange={refresh} refreshKey={tick} active={tab==="control"} savedJourney={savedJourney} reviewRequest={reviewRequest} onSaved={saved} />}
+          {visited.has("control") && <ErrorBoundary name="control room"><ControlRoom nodes={nodes} onChange={refresh} refreshKey={tick} active={tab==="control"} savedJourney={savedJourney} reviewRequest={reviewRequest} onSaved={saved} /></ErrorBoundary>}
         </div>
         <div style={{ display: tab === "shipments" ? "block" : "none" }}>
           {visited.has("shipments") && <Shipments nodes={nodes} ops={ops} />}
