@@ -20,6 +20,9 @@ from .live import Forecasts, TomTom
 from .geometry import simplify
 
 STALE_AFTER_S = {"weather": 1800, "traffic": 600, "routing": 86400}
+# After the road service fails, skip it for this long instead of waiting for a
+# timeout on every leg (one plan asks for up to ~20 legs). Estimates are used meanwhile.
+ROUTING_BACKOFF_S = 60
 
 
 def _now():
@@ -102,6 +105,7 @@ class RoutingProvider(Provider):
         self.legs = {}
         self.route_choices = {}
         self.client = httpx.Client(timeout=3.0)
+        self.failed_at = 0.0
 
     def leg(self, from_ll, to_ll):
         return self.via(from_ll,to_ll,[])
@@ -118,6 +122,8 @@ class RoutingProvider(Provider):
         cached = cache.get(cache_key)
         if cached and time.time()-cached[0] < (86400 if cached[1] else 30):
             return cached[1]
+        if time.time() - self.failed_at < ROUTING_BACKOFF_S:
+            return []  # road service failed moments ago; do not wait for another timeout
         self.last_attempt = _now()
         try:
             stops=";".join(f"{lon},{lat}" for lat,lon in [from_ll,*via,to_ll])
@@ -132,6 +138,7 @@ class RoutingProvider(Provider):
                       for route in r.json().get("routes", [])[:limit+1]]
         except Exception as ex:
             self.error = type(ex).__name__
+            self.failed_at = time.time()
             result = []
         cache[cache_key] = (time.time(), result)
         if result: self.legs[key] = (time.time(), result[:1])

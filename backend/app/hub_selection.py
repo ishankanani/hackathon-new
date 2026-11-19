@@ -61,9 +61,13 @@ def select_hubs(origin, destination, available_hubs, existing_route, routing, co
         if corridor_distance(n, corridor) > constraints.get("corridor_km", 35): continue
         candidates.append((remaining, n))
     candidates.sort(key=lambda x:x[0])
+    road_down = bool(existing_route.get("estimated"))
     def verify(item):
         _, n = item
-        left = routing.leg(ll(origin), ll(n)); right = routing.leg(ll(n), ll(destination))
+        if road_down:  # the direct route already failed: estimate instead of 16 more timeouts
+            left, right = estimate_leg(ll(origin), ll(n)), estimate_leg(ll(n), ll(destination))
+        else:
+            left = routing.leg(ll(origin), ll(n)); right = routing.leg(ll(n), ll(destination))
         if not left.get("geometry"): left = estimate_leg(ll(origin), ll(n))
         if not right.get("geometry"): right = estimate_leg(ll(n), ll(destination))
         estimated = existing_route.get("estimated") or left.get("estimated") or right.get("estimated")
