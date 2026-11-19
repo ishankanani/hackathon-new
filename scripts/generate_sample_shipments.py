@@ -61,6 +61,8 @@ def main():
     parser.add_argument("--url", required=True, help="site address, e.g. https://your-site.vercel.app")
     parser.add_argument("--count", type=int, default=100)
     parser.add_argument("--seed", type=int, default=7, help="change for a different random set")
+    parser.add_argument("--past-days", type=float, default=30, help="delivered journeys spread over this many past days")
+    parser.add_argument("--future-days", type=float, default=14, help="scheduled journeys spread over this many coming days")
     parser.add_argument("--disrupted", type=int, default=0, help="extra journeys rerouted around a sample traffic incident")
     args = parser.parse_args()
     base = args.url.rstrip("/") + "/api"
@@ -84,11 +86,11 @@ def main():
     for number, (kind, disrupted) in enumerate(kinds, 1):
         origin, destination = rng.sample(ids, 2)
         if kind == "delivered":
-            departure = now - timedelta(days=rng.uniform(1.5, 30), hours=rng.uniform(0, 12))
+            departure = now - timedelta(days=rng.uniform(1.5, args.past_days), hours=rng.uniform(0, 12))
         elif kind == "in transit":
             departure = now - timedelta(hours=rng.uniform(1, 6))
         else:
-            departure = now + timedelta(days=rng.uniform(1, 14), hours=rng.uniform(0, 10))
+            departure = now + timedelta(days=rng.uniform(1, args.future_days), hours=rng.uniform(0, 10))
         departure = departure.replace(minute=rng.choice([0, 15, 30, 45]), second=0)
         weight = rng.choice([800, 1500, 2500, 4000, 6000, 8000, 12000, 16000, 20000])
         body = {
