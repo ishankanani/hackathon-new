@@ -50,7 +50,10 @@ def initialize(url):
     try:
         with psycopg.connect(url, connect_timeout=15, prepare_threshold=None) as connection:
             connection.execute("CREATE TABLE IF NOT EXISTS dachser_state (name text PRIMARY KEY, payload bytea NOT NULL, version bigint NOT NULL DEFAULT 1, updated_at timestamptz NOT NULL DEFAULT now())")
-    except psycopg.Error:
+    except psycopg.Error as error:
+        # Log the database's own reason (it never contains the password) so a
+        # wrong DATABASE_URL can be diagnosed from the hosting logs.
+        print(f"DATABASE CONNECTION FAILED: {type(error).__name__}: {str(error).strip()[:500]}", flush=True)
         raise StorageUnavailable("Shared storage could not be reached. Please try again.") from None
 
 
